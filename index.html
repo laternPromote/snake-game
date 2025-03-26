@@ -885,6 +885,12 @@
             const x = touch.clientX - rect.left;
             const y = touch.clientY - rect.top;
 
+            // 如果游戏未开始，则开始游戏
+            if (!isGameStarted) {
+                startGame();
+                return;
+            }
+
             // 在触摸位置创建虚拟摇杆
             joystick.isActive = true;
             joystick.centerX = x;
@@ -1002,12 +1008,32 @@
         // 添加控制面板
         const controlPanel = document.createElement('div');
         controlPanel.style.position = 'absolute';
-        controlPanel.style.bottom = '10px';
-        controlPanel.style.left = '10px';
+        controlPanel.style.top = '10px';
+        controlPanel.style.left = '50%';
+        controlPanel.style.transform = 'translateX(-50%)';
         controlPanel.style.zIndex = '100';
         controlPanel.style.color = 'yellow';
-        controlPanel.style.fontSize = '16px';
+        controlPanel.style.fontSize = '20px';
         controlPanel.innerHTML = `
+            <button id="pause-button" style="
+                background: rgba(0, 0, 0, 0.5);
+                border: 2px solid yellow;
+                color: yellow;
+                cursor: pointer;
+                font-size: 24px;
+                padding: 10px 20px;
+                border-radius: 10px;
+                font-weight: bold;
+            ">
+                暂停
+            </button>
+        `;
+        document.body.appendChild(controlPanel);
+
+        // 创建隐藏的控制选项
+        const hiddenControls = document.createElement('div');
+        hiddenControls.style.display = 'none';
+        hiddenControls.innerHTML = `
             <div>
                 <label>
                     <input type="checkbox" id="accelerometer-toggle"> 使用重力感应
@@ -1018,13 +1044,8 @@
                     <input type="checkbox" id="invincible-toggle"> 无敌模式
                 </label>
             </div>
-            <div>
-                <button id="pause-button" style="background: none; border: none; color: yellow; cursor: pointer; font-size: 16px;">
-                    暂停
-                </button>
-            </div>
         `;
-        document.body.appendChild(controlPanel);
+        document.body.appendChild(hiddenControls);
 
         // 切换重力感应
         document.getElementById('accelerometer-toggle').addEventListener('change', function(e) {
