@@ -875,46 +875,95 @@
             nameInput.disabled = false;
             nameInput.focus();
 
+            // 创建事件隔离层
+            const eventIsolationLayer = document.createElement('div');
+            eventIsolationLayer.style.position = 'fixed';
+            eventIsolationLayer.style.top = '0';
+            eventIsolationLayer.style.left = '0';
+            eventIsolationLayer.style.width = '100%';
+            eventIsolationLayer.style.height = '100%';
+            eventIsolationLayer.style.zIndex = '999';
+            eventIsolationLayer.style.display = 'none';
+            document.body.appendChild(eventIsolationLayer);
+
             // 优化输入框事件处理
-            nameInput.addEventListener('touchstart', function(e) {
+            const inputEventHandlers = {
+                touchstart: function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    eventIsolationLayer.style.display = 'block';
+                },
+                touchmove: function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                },
+                touchend: function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    eventIsolationLayer.style.display = 'none';
+                },
+                click: function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                },
+                input: function(e) {
+                    e.stopPropagation();
+                },
+                focus: function(e) {
+                    e.stopPropagation();
+                },
+                blur: function(e) {
+                    e.stopPropagation();
+                }
+            };
+
+            // 移除旧的事件监听器
+            Object.keys(inputEventHandlers).forEach(eventType => {
+                nameInput.removeEventListener(eventType, inputEventHandlers[eventType], { capture: true });
+            });
+
+            // 添加新的事件监听器
+            Object.keys(inputEventHandlers).forEach(eventType => {
+                nameInput.addEventListener(eventType, inputEventHandlers[eventType], { capture: true });
+            });
+
+            // 模态框事件处理
+            modal.addEventListener('touchstart', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
-                e.stopImmediatePropagation();
             }, { passive: false, capture: true });
-            
-            nameInput.addEventListener('touchmove', function(e) {
+
+            modal.addEventListener('touchmove', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
-                e.stopImmediatePropagation();
-            }, { passive: false, capture: true });
-            
-            nameInput.addEventListener('touchend', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                e.stopImmediatePropagation();
             }, { passive: false, capture: true });
 
-            // 添加输入框的点击事件处理
-            nameInput.addEventListener('click', function(e) {
+            modal.addEventListener('touchend', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
-                e.stopImmediatePropagation();
-            }, { capture: true });
+            }, { passive: false, capture: true });
 
-            // 添加输入框的输入事件处理
-            nameInput.addEventListener('input', function(e) {
-                e.stopPropagation();
-            }, { capture: true });
+            // 清理函数
+            const cleanup = function() {
+                Object.keys(inputEventHandlers).forEach(eventType => {
+                    nameInput.removeEventListener(eventType, inputEventHandlers[eventType], { capture: true });
+                });
+                eventIsolationLayer.remove();
+            };
 
-            // 添加输入框的焦点事件处理
-            nameInput.addEventListener('focus', function(e) {
-                e.stopPropagation();
-            }, { capture: true });
-
-            // 添加输入框的失焦事件处理
-            nameInput.addEventListener('blur', function(e) {
-                e.stopPropagation();
-            }, { capture: true });
+            // 在模态框关闭时清理事件监听器
+            const originalDisplay = modal.style.display;
+            Object.defineProperty(modal, 'style', {
+                get: function() {
+                    return originalDisplay;
+                },
+                set: function(value) {
+                    if (value === 'none') {
+                        cleanup();
+                    }
+                    originalDisplay = value;
+                }
+            });
         }
 
         // 处理保存分数
@@ -1056,46 +1105,95 @@
             nameInput.disabled = false;
             nameInput.focus();
 
+            // 创建事件隔离层
+            const eventIsolationLayer = document.createElement('div');
+            eventIsolationLayer.style.position = 'fixed';
+            eventIsolationLayer.style.top = '0';
+            eventIsolationLayer.style.left = '0';
+            eventIsolationLayer.style.width = '100%';
+            eventIsolationLayer.style.height = '100%';
+            eventIsolationLayer.style.zIndex = '999';
+            eventIsolationLayer.style.display = 'none';
+            document.body.appendChild(eventIsolationLayer);
+
             // 优化输入框事件处理
-            nameInput.addEventListener('touchstart', function(e) {
+            const inputEventHandlers = {
+                touchstart: function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    eventIsolationLayer.style.display = 'block';
+                },
+                touchmove: function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                },
+                touchend: function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    eventIsolationLayer.style.display = 'none';
+                },
+                click: function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                },
+                input: function(e) {
+                    e.stopPropagation();
+                },
+                focus: function(e) {
+                    e.stopPropagation();
+                },
+                blur: function(e) {
+                    e.stopPropagation();
+                }
+            };
+
+            // 移除旧的事件监听器
+            Object.keys(inputEventHandlers).forEach(eventType => {
+                nameInput.removeEventListener(eventType, inputEventHandlers[eventType], { capture: true });
+            });
+
+            // 添加新的事件监听器
+            Object.keys(inputEventHandlers).forEach(eventType => {
+                nameInput.addEventListener(eventType, inputEventHandlers[eventType], { capture: true });
+            });
+
+            // 模态框事件处理
+            modal.addEventListener('touchstart', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
-                e.stopImmediatePropagation();
             }, { passive: false, capture: true });
-            
-            nameInput.addEventListener('touchmove', function(e) {
+
+            modal.addEventListener('touchmove', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
-                e.stopImmediatePropagation();
-            }, { passive: false, capture: true });
-            
-            nameInput.addEventListener('touchend', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                e.stopImmediatePropagation();
             }, { passive: false, capture: true });
 
-            // 添加输入框的点击事件处理
-            nameInput.addEventListener('click', function(e) {
+            modal.addEventListener('touchend', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
-                e.stopImmediatePropagation();
-            }, { capture: true });
+            }, { passive: false, capture: true });
 
-            // 添加输入框的输入事件处理
-            nameInput.addEventListener('input', function(e) {
-                e.stopPropagation();
-            }, { capture: true });
+            // 清理函数
+            const cleanup = function() {
+                Object.keys(inputEventHandlers).forEach(eventType => {
+                    nameInput.removeEventListener(eventType, inputEventHandlers[eventType], { capture: true });
+                });
+                eventIsolationLayer.remove();
+            };
 
-            // 添加输入框的焦点事件处理
-            nameInput.addEventListener('focus', function(e) {
-                e.stopPropagation();
-            }, { capture: true });
-
-            // 添加输入框的失焦事件处理
-            nameInput.addEventListener('blur', function(e) {
-                e.stopPropagation();
-            }, { capture: true });
+            // 在模态框关闭时清理事件监听器
+            const originalDisplay = modal.style.display;
+            Object.defineProperty(modal, 'style', {
+                get: function() {
+                    return originalDisplay;
+                },
+                set: function(value) {
+                    if (value === 'none') {
+                        cleanup();
+                    }
+                    originalDisplay = value;
+                }
+            });
         }
 
         // 处理成功保存
