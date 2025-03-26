@@ -102,7 +102,7 @@
 </head>
 <body>
     <div id="game-container">
-        <div id="score">得分: 0/100</div>
+        <div id="score">得分: 0/30</div>
         <button id="fullscreen-button">全屏</button>
         <canvas id="game-canvas"></canvas>
         <div id="share-instruction">
@@ -114,7 +114,7 @@
     <div id="success-modal" class="modal">
         <div class="modal-content">
             <h2>挑战成功!</h2>
-            <p>你成功吃到了100个豆子!</p>
+            <p>你成功吃到了30个豆子!</p>
             <button id="restart-button">再玩一次</button>
             <button id="share-button">分享游戏</button>
         </div>
@@ -123,7 +123,9 @@
     <script>
         // 游戏常量
         const GRID_SIZE = 20;
-        const TARGET_SCORE = 100;
+        const TARGET_SCORE = 30;  // 修改获胜条件为30个
+        const INITIAL_GAME_SPEED = 200;  // 降低初始速度
+        const MIN_FOOD_COUNT = 5;  // 至少5个食物
         
         // 游戏变量
         let canvas = document.getElementById('game-canvas');
@@ -134,16 +136,44 @@
         let food = [];
         let direction = 'right';
         let nextDirection = 'right';
-        let gameSpeed = 100;
+        let gameSpeed = INITIAL_GAME_SPEED;
         let gameLoop;
         let touchStartX = 0;
         let touchStartY = 0;
         let isInWeChat = /MicroMessenger/i.test(navigator.userAgent);
         let isInIMessage = /iMessage/i.test(navigator.userAgent);
         
+        // 添加重力感应开关
+        let useAccelerometer = false;
+        
+        // 重力感应处理
+        function handleDeviceOrientation(event) {
+            if (!useAccelerometer) return;
+            
+            const x = event.beta;  // 前后倾斜
+            const y = event.gamma; // 左右倾斜
+            
+            if (Math.abs(y) > Math.abs(x)) {
+                if (y > 15 && direction !== 'left') {
+                    nextDirection = 'right';
+                } else if (y < -15 && direction !== 'right') {
+                    nextDirection = 'left';
+                }
+            } else {
+                if (x > 15 && direction !== 'up') {
+                    nextDirection = 'down';
+                } else if (x < -15 && direction !== 'down') {
+                    nextDirection = 'up';
+                }
+            }
+        }
+        
         // 调整画布大小
         function resizeCanvas() {
-            const size = Math.min(window.innerWidth, window.innerHeight) * 0.9;
+            // 针对iPhone 13 Pro Max设计，留出边距
+            const maxWidth = window.innerWidth * 0.95;
+            const maxHeight = window.innerHeight * 0.9;
+            const size = Math.min(maxWidth, maxHeight);
             const gridWidth = Math.floor(size / GRID_SIZE);
             canvas.width = gridWidth * GRID_SIZE;
             canvas.height = gridWidth * GRID_SIZE;
@@ -164,8 +194,11 @@
                 {x: startX - 2, y: startY}
             ];
             
-            // 初始化食物
-            generateFood();
+            // 初始化多个食物
+            food = [];
+            for (let i = 0; i < MIN_FOOD_COUNT; i++) {
+                generateFood();
+            }
             
             // 重置分数和方向
             score = 0;
@@ -209,9 +242,17 @@
                         break;
                     }
                 }
+                
+                // 检查食物是否与其他食物重叠
+                for (let existingFood of food) {
+                    if (existingFood.x === foodX && existingFood.y === foodY) {
+                        validPosition = false;
+                        break;
+                    }
+                }
             }
             
-            food = {x: foodX, y: foodY};
+            food.push({x: foodX, y: foodY});
         }
         
         // 游戏主循环
@@ -239,36 +280,39 @@
             
             // 检查碰撞
             if (checkCollision(head)) {
-                gameOver();
-                return;
+                return;  // 不再调用gameOver()
             }
             
             // 添加新头部
             snake.unshift(head);
             
             // 检查是否吃到食物
-            if (head.x === food.x && head.y === food.y) {
-                score++;
-                scoreElement.textContent = `得分: ${score}/${TARGET_SCORE}`;
-                
-                // 检查是否获胜
-                if (score >= TARGET_SCORE) {
-                    showSuccessModal();
-                    return;
+            let ateFood = false;
+            for (let i = 0; i < food.length; i++) {
+                if (head.x === food[i].x && head.y === food[i].y) {
+                    score++;
+                    scoreElement.textContent = `得分: ${score}/${TARGET_SCORE}`;
+                    food.splice(i, 1);  // 移除被吃掉的食物
+                    ateFood = true;
+                    break;
                 }
-                
-                // 生成新食物
-                generateFood();
-                
-                // 随着分数增加加快游戏速度
-                if (score % 5 === 0 && gameSpeed > 50) {
-                    gameSpeed -= 5;
-                    clearInterval(gameLoop);
-                    gameLoop = setInterval(gameStep, gameSpeed);
-                }
-            } else {
-                // 如果没有吃到食物，移除尾部
+            }
+            
+            // 如果没有吃到食物，移除尾部
+            if (!ateFood) {
                 snake.pop();
+            }
+            
+            // 补充食物到最小数量
+            while (food.length < MIN_FOOD_COUNT) {
+                generateFood();
+            }
+            
+            // 随着分数增加加快游戏速度
+            if (score % 10 === 0 && gameSpeed > 50) {  // 每10分加速一次
+                gameSpeed -= 2;  // 每次只减少2ms
+                clearInterval(gameLoop);
+                gameLoop = setInterval(gameStep, gameSpeed);
             }
             
             // 绘制游戏
@@ -277,10 +321,35 @@
         
         // 检查碰撞
         function checkCollision(head) {
-            // 检查墙壁碰撞
+            let collided = false;
+            
+            // 撞墙处理
             if (head.x < 0 || head.x >= canvas.width / GRID_SIZE ||
                 head.y < 0 || head.y >= canvas.height / GRID_SIZE) {
-                return true;
+                collided = true;
+                
+                // 优先右转
+                if (direction !== 'left') {
+                    nextDirection = 'right';
+                } 
+                // 如果不能右转，则左转
+                else if (direction !== 'right') {
+                    nextDirection = 'left';
+                }
+                // 如果左右都不能转，则下转
+                else if (direction !== 'up') {
+                    nextDirection = 'down';
+                }
+                // 如果上下左右都不能转，则上转
+                else {
+                    nextDirection = 'up';
+                }
+                
+                // 修正蛇头位置
+                if (head.x < 0) head.x = canvas.width / GRID_SIZE - 1;
+                if (head.x >= canvas.width / GRID_SIZE) head.x = 0;
+                if (head.y < 0) head.y = canvas.height / GRID_SIZE - 1;
+                if (head.y >= canvas.height / GRID_SIZE) head.y = 0;
             }
             
             // 检查自身碰撞
@@ -290,7 +359,7 @@
                 }
             }
             
-            return false;
+            return collided;
         }
         
         // 绘制游戏
@@ -321,13 +390,16 @@
             }
             
             // 绘制食物
-            ctx.fillStyle = '#FF5722';
-            ctx.beginPath();
-            const centerX = food.x * GRID_SIZE + GRID_SIZE / 2;
-            const centerY = food.y * GRID_SIZE + GRID_SIZE / 2;
-            const radius = GRID_SIZE / 2 - 2;
-            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-            ctx.fill();
+            for (let i = 0; i < food.length; i++) {
+                const foodSegment = food[i];
+                ctx.fillStyle = '#FF5722';
+                ctx.beginPath();
+                const centerX = foodSegment.x * GRID_SIZE + GRID_SIZE / 2;
+                const centerY = foodSegment.y * GRID_SIZE + GRID_SIZE / 2;
+                const radius = GRID_SIZE / 2 - 2;
+                ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
         }
         
         // 游戏结束
@@ -421,7 +493,7 @@
             if (navigator.share) {
                 navigator.share({
                     title: '贪吃蛇游戏',
-                    text: '我刚刚在贪吃蛇游戏中获得了100分! 你也来试试吧!',
+                    text: '我刚刚在贪吃蛇游戏中获得了30分! 你也来试试吧!',
                     url: window.location.href
                 }).catch(err => {
                     console.log('分享取消:', err);
@@ -436,9 +508,9 @@
         // 事件监听
         window.addEventListener('resize', initGame);
         document.addEventListener('keydown', handleKeyDown);
-        canvas.addEventListener('touchstart', handleTouchStart, {passive: false});
-        canvas.addEventListener('touchmove', handleTouchMove, {passive: false});
-        canvas.addEventListener('touchend', handleTouchEnd, {passive: false});
+        document.addEventListener('touchstart', handleTouchStart, {passive: false});
+        document.addEventListener('touchmove', handleTouchMove, {passive: false});
+        document.addEventListener('touchend', handleTouchEnd, {passive: false});
         
         // 按钮事件
         document.getElementById('restart-button').addEventListener('click', function() {
@@ -457,6 +529,31 @@
                 if (!gameLoop && document.getElementById('success-modal').style.display !== 'flex') {
                     initGame();
                 }
+            }
+        });
+        
+        // 添加控制面板
+        const controlPanel = document.createElement('div');
+        controlPanel.style.position = 'absolute';
+        controlPanel.style.bottom = '10px';
+        controlPanel.style.left = '10px';
+        controlPanel.style.zIndex = '100';
+        controlPanel.style.color = 'yellow';  // 黄色文字
+        controlPanel.style.fontSize = '16px';
+        controlPanel.innerHTML = `
+            <label>
+                <input type="checkbox" id="accelerometer-toggle"> 使用重力感应
+            </label>
+        `;
+        document.body.appendChild(controlPanel);
+
+        // 切换重力感应
+        document.getElementById('accelerometer-toggle').addEventListener('change', function(e) {
+            useAccelerometer = e.target.checked;
+            if (useAccelerometer) {
+                window.addEventListener('deviceorientation', handleDeviceOrientation);
+            } else {
+                window.removeEventListener('deviceorientation', handleDeviceOrientation);
             }
         });
         
