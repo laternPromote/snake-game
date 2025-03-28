@@ -328,12 +328,14 @@
     </div>
 
     <script>
-        // 强制刷新缓存
-        if ('serviceWorker' in navigator) {
+        // 修改缓存刷新逻辑，添加协议检查
+        if (window.location.protocol !== 'file:' && 'serviceWorker' in navigator) {
             navigator.serviceWorker.getRegistrations().then(function(registrations) {
                 for (let registration of registrations) {
                     registration.unregister();
                 }
+            }).catch(err => {
+                console.log('Service Worker卸载失败:', err);
             });
         }
         
@@ -342,7 +344,10 @@
         const url = new URL(window.location.href);
         if (!url.searchParams.has('v')) {
             url.searchParams.set('v', version);
-            window.location.href = url.toString();
+            // 仅在非本地文件系统时重定向
+            if (window.location.protocol !== 'file:') {
+                window.location.href = url.toString();
+            }
         }
         
         // 游戏常量
@@ -391,16 +396,6 @@
         let snakeHeadEffects = [];
         let comboTexts = [];
         let badFoodEffects = [];  // 臭鸡蛋特效
-        
-        // 虚拟摇杆变量
-        let joystick = {
-            x: 0,
-            y: 0,
-            radius: 80,  // 增大摇杆尺寸
-            isActive: false,
-            centerX: 0,
-            centerY: 0
-        };
         
         // 添加滑动控制变量
         let isSwiping = false;
@@ -752,44 +747,12 @@
             // 绘制连击文字
             drawComboTexts();
             
-            // 绘制虚拟摇杆
-            drawJoystick();
-            
             // 绘制臭鸡蛋特效
             drawBadFoodEffects();
             
             // 将离屏canvas的内容复制到主canvas
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(offscreenCanvas, 0, 0);
-        }
-        
-        // 绘制虚拟摇杆
-        function drawJoystick() {
-            if (!joystick.isActive) return;
-
-            offscreenCtx.save();
-            
-            // 绘制摇杆背景
-            offscreenCtx.beginPath();
-            offscreenCtx.arc(joystick.centerX, joystick.centerY, joystick.radius, 0, Math.PI * 2);
-            offscreenCtx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-            offscreenCtx.fill();
-            offscreenCtx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-            offscreenCtx.lineWidth = 2;
-            offscreenCtx.stroke();
-            
-            // 绘制摇杆手柄
-            const handleX = joystick.centerX + joystick.x;
-            const handleY = joystick.centerY + joystick.y;
-            offscreenCtx.beginPath();
-            offscreenCtx.arc(handleX, handleY, 20, 0, Math.PI * 2);
-            offscreenCtx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-            offscreenCtx.fill();
-            offscreenCtx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-            offscreenCtx.lineWidth = 2;
-            offscreenCtx.stroke();
-            
-            offscreenCtx.restore();
         }
         
         // 优化蛇头特效
@@ -1281,19 +1244,6 @@
             touchStartX = x;
             touchStartY = y;
             isSwiping = true;
-
-            // 检查是否在游戏区域内
-            if (x >= 0 && x <= canvas.width && y >= 0 && y <= canvas.height) {
-                // 在游戏区域内，使用滑动控制
-                isSwiping = true;
-            } else {
-                // 在游戏区域外，使用虚拟摇杆
-                joystick.isActive = true;
-                joystick.centerX = x;
-                joystick.centerY = y;
-                joystick.x = 0;
-                joystick.y = 0;
-            }
         }
 
         function handleTouchMove(e) {
@@ -1339,16 +1289,9 @@
                         nextDirection = 'up';
                     }
                 }
-            } else if (joystick.isActive) {
-                const touch = e.touches[0];
-                const rect = canvas.getBoundingClientRect();
-                const x = touch.clientX - rect.left;
-                const y = touch.clientY - rect.top;
-                updateJoystickPosition(x, y);
             }
         }
 
-        // 添加缺失的handleTouchEnd函数
         function handleTouchEnd(e) {
             // 检查任何可见的模态框
             const successModal = document.getElementById('success-modal');
@@ -1369,9 +1312,6 @@
             
             e.preventDefault();
             isSwiping = false;
-            joystick.isActive = false;
-            joystick.x = 0;
-            joystick.y = 0;
         }
 
         // 添加缺失的generateFood函数
@@ -1444,36 +1384,6 @@
                     y: foodY,
                     isBad: isBadFood
                 });
-            }
-        }
-
-        // 更新虚拟摇杆位置
-        function updateJoystickPosition(x, y) {
-            const dx = x - joystick.centerX;
-            const dy = y - joystick.centerY;
-            const distance = Math.hypot(dx, dy);
-
-            if (distance > joystick.radius) {
-                joystick.x = (dx / distance) * joystick.radius;
-                joystick.y = (dy / distance) * joystick.radius;
-            } else {
-                joystick.x = dx;
-                joystick.y = dy;
-            }
-
-            // 更新方向
-            if (Math.abs(joystick.x) > Math.abs(joystick.y)) {
-                if (joystick.x > 20 && direction !== 'left') {
-                    nextDirection = 'right';
-                } else if (joystick.x < -20 && direction !== 'right') {
-                    nextDirection = 'left';
-                }
-            } else {
-                if (joystick.y > 20 && direction !== 'up') {
-                    nextDirection = 'down';
-                } else if (joystick.y < -20 && direction !== 'down') {
-                    nextDirection = 'up';
-                }
             }
         }
 
