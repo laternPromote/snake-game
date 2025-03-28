@@ -933,6 +933,19 @@
             const stepsElement = document.getElementById('game-over-steps');
             if (stepsElement) stepsElement.textContent = steps;
 
+            // 修复输入框问题
+            const nameInput = document.getElementById('game-over-name-input');
+            if (nameInput) {
+                nameInput.value = '';
+                nameInput.focus();  // 自动聚焦输入框
+                nameInput.addEventListener('input', function(e) {
+                    e.stopPropagation();  // 阻止事件冒泡
+                });
+                nameInput.addEventListener('touchstart', function(e) {
+                    e.stopPropagation();  // 阻止触摸事件冒泡
+                });
+            }
+
             // 简化按钮的事件处理
             const saveBtn = document.getElementById('game-over-save-btn');
             if (saveBtn) {
@@ -946,12 +959,6 @@
                 const newRetryBtn = retryBtn.cloneNode(true);
                 retryBtn.parentNode.replaceChild(newRetryBtn, retryBtn);
                 newRetryBtn.addEventListener('click', handleRetry);
-            }
-            
-            // 清空输入框
-            const nameInput = document.getElementById('game-over-name-input');
-            if (nameInput) {
-                nameInput.value = '';
             }
         }
 
@@ -1234,19 +1241,16 @@
                 startGame();
                 return;
             }
-            
-            const touch = e.touches[0];
-            const rect = canvas.getBoundingClientRect();
-            const x = touch.clientX - rect.left;
-            const y = touch.clientY - rect.top;
 
-            // 记录触摸起始位置
-            touchStartX = x;
-            touchStartY = y;
+            const touch = e.touches[0];
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
             isSwiping = true;
         }
 
         function handleTouchMove(e) {
+            if (!isSwiping) return;
+            
             // 检查任何可见的模态框
             const successModal = document.getElementById('success-modal');
             const gameOverModal = document.getElementById('game-over-modal');
@@ -1266,28 +1270,25 @@
             
             e.preventDefault();
             
-            if (isSwiping) {
-                const touch = e.touches[0];
-                const rect = canvas.getBoundingClientRect();
-                const x = touch.clientX - rect.left;
-                const y = touch.clientY - rect.top;
-                
-                const dx = x - touchStartX;
-                const dy = y - touchStartY;
-                
-                // 判断滑动方向
-                if (Math.abs(dx) > Math.abs(dy)) {
-                    if (dx > 20 && direction !== 'left') {
-                        nextDirection = 'right';
-                    } else if (dx < -20 && direction !== 'right') {
-                        nextDirection = 'left';
-                    }
-                } else {
-                    if (dy > 20 && direction !== 'up') {
-                        nextDirection = 'down';
-                    } else if (dy < -20 && direction !== 'down') {
-                        nextDirection = 'up';
-                    }
+            const touch = e.touches[0];
+            const touchEndX = touch.clientX;
+            const touchEndY = touch.clientY;
+            
+            const dx = touchEndX - touchStartX;
+            const dy = touchEndY - touchStartY;
+            
+            // 判断滑动方向
+            if (Math.abs(dx) > Math.abs(dy)) {
+                if (dx > 20 && direction !== 'left') {
+                    nextDirection = 'right';
+                } else if (dx < -20 && direction !== 'right') {
+                    nextDirection = 'left';
+                }
+            } else {
+                if (dy > 20 && direction !== 'up') {
+                    nextDirection = 'down';
+                } else if (dy < -20 && direction !== 'down') {
+                    nextDirection = 'up';
                 }
             }
         }
