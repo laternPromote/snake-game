@@ -2,6 +2,9 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -325,6 +328,23 @@
     </div>
 
     <script>
+        // 强制刷新缓存
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for (let registration of registrations) {
+                    registration.unregister();
+                }
+            });
+        }
+        
+        // 添加版本号到URL
+        const version = 'v1.0.0'; // 每次更新时修改版本号
+        const url = new URL(window.location.href);
+        if (!url.searchParams.has('v')) {
+            url.searchParams.set('v', version);
+            window.location.href = url.toString();
+        }
+        
         // 游戏常量
         const GRID_SIZE = 20;
         const TARGET_SCORE = 30;
@@ -475,8 +495,19 @@
             if (!isGameStarted) {
                 isGameStarted = true;
                 lastFrameTime = 0;
+                
+                // 确保食物数组不为空
+                if (food.length === 0) {
+                    for (let i = 0; i < MIN_FOOD_COUNT; i++) {
+                        generateFood();
+                    }
+                }
+                
+                // 启动游戏循环
                 animationFrameId = requestAnimationFrame(gameLoop);
-                drawGame();
+                
+                // 显示控制面板
+                controlPanel.style.display = 'block';
             }
         }
 
@@ -490,6 +521,12 @@
         // 游戏主循环
         function gameStep() {
             if (isPaused) return;
+            
+            // 添加安全检查
+            if (!snake || snake.length === 0) {
+                console.error('蛇未正确初始化');
+                return;
+            }
             
             // 更新方向
             direction = nextDirection;
@@ -581,6 +618,9 @@
 
         // 显示加速提示
         function showSpeedUpMessage() {
+            // 只有当分数大于0时才显示速度提升消息
+            if (score <= 0) return;
+            
             const message = document.createElement('div');
             message.style.position = 'fixed';
             message.style.top = '50%';
@@ -901,159 +941,101 @@
                 cancelAnimationFrame(animationFrameId);
                 animationFrameId = null;
             }
+            // 隐藏控制面板
+            controlPanel.style.display = 'none';
             showGameOverModal();
         }
 
         // 显示游戏结束弹窗
         function showGameOverModal() {
             const modal = document.getElementById('game-over-modal');
+            if (!modal) return;
+            
+            // 停止所有游戏动画和更新
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            
+            // 显示模态框
             modal.style.display = 'flex';
             
             // 更新模态框内容
-            document.getElementById('game-over-reason').textContent = deathReason;
-            document.getElementById('game-over-score').textContent = score;
-            document.getElementById('game-over-steps').textContent = steps;
+            const reasonElement = document.getElementById('game-over-reason');
+            if (reasonElement) reasonElement.textContent = deathReason;
+            
+            const scoreElement = document.getElementById('game-over-score');
+            if (scoreElement) scoreElement.textContent = score;
+            
+            const stepsElement = document.getElementById('game-over-steps');
+            if (stepsElement) stepsElement.textContent = steps;
 
-            // 获取输入框和按钮元素
-            const nameInput = document.getElementById('game-over-name-input');
+            // 简化按钮的事件处理
             const saveBtn = document.getElementById('game-over-save-btn');
+            if (saveBtn) {
+                const newSaveBtn = saveBtn.cloneNode(true);
+                saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+                newSaveBtn.addEventListener('click', handleSaveScore);
+            }
+            
             const retryBtn = document.getElementById('game-over-retry-btn');
+            if (retryBtn) {
+                const newRetryBtn = retryBtn.cloneNode(true);
+                retryBtn.parentNode.replaceChild(newRetryBtn, retryBtn);
+                newRetryBtn.addEventListener('click', handleRetry);
+            }
             
-            // 移除旧的事件监听器
-            saveBtn.removeEventListener('click', handleSaveScore);
-            saveBtn.removeEventListener('touchend', handleSaveScore);
-            retryBtn.removeEventListener('click', handleRetry);
-            retryBtn.removeEventListener('touchend', handleRetry);
-            
-            // 添加新的事件监听器
-            saveBtn.addEventListener('click', handleSaveScore);
-            saveBtn.addEventListener('touchend', handleSaveScore);
-            retryBtn.addEventListener('click', handleRetry);
-            retryBtn.addEventListener('touchend', handleRetry);
-
-            // 确保输入框可以正常输入
-            nameInput.value = '';
-            nameInput.disabled = false;
-            nameInput.focus();
-
-            // 创建事件隔离层
-            const eventIsolationLayer = document.createElement('div');
-            eventIsolationLayer.style.position = 'fixed';
-            eventIsolationLayer.style.top = '0';
-            eventIsolationLayer.style.left = '0';
-            eventIsolationLayer.style.width = '100%';
-            eventIsolationLayer.style.height = '100%';
-            eventIsolationLayer.style.zIndex = '999';
-            eventIsolationLayer.style.display = 'none';
-            document.body.appendChild(eventIsolationLayer);
-
-            // 优化输入框事件处理
-            const inputEventHandlers = {
-                touchstart: function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    eventIsolationLayer.style.display = 'block';
-                },
-                touchmove: function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                },
-                touchend: function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    eventIsolationLayer.style.display = 'none';
-                },
-                click: function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                },
-                input: function(e) {
-                    e.stopPropagation();
-                },
-                focus: function(e) {
-                    e.stopPropagation();
-                },
-                blur: function(e) {
-                    e.stopPropagation();
-                }
-            };
-
-            // 移除旧的事件监听器
-            Object.keys(inputEventHandlers).forEach(eventType => {
-                nameInput.removeEventListener(eventType, inputEventHandlers[eventType], { capture: true });
-            });
-
-            // 添加新的事件监听器
-            Object.keys(inputEventHandlers).forEach(eventType => {
-                nameInput.addEventListener(eventType, inputEventHandlers[eventType], { capture: true });
-            });
-
-            // 模态框事件处理
-            modal.addEventListener('touchstart', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-            }, { passive: false, capture: true });
-
-            modal.addEventListener('touchmove', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-            }, { passive: false, capture: true });
-
-            modal.addEventListener('touchend', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-            }, { passive: false, capture: true });
-
-            // 清理函数
-            const cleanup = function() {
-                Object.keys(inputEventHandlers).forEach(eventType => {
-                    nameInput.removeEventListener(eventType, inputEventHandlers[eventType], { capture: true });
-                });
-                eventIsolationLayer.remove();
-            };
-
-            // 在模态框关闭时清理事件监听器
-            const originalDisplay = modal.style.display;
-            Object.defineProperty(modal, 'style', {
-                get: function() {
-                    return originalDisplay;
-                },
-                set: function(value) {
-                    if (value === 'none') {
-                        cleanup();
-                    }
-                    originalDisplay = value;
-                }
-            });
+            // 清空输入框
+            const nameInput = document.getElementById('game-over-name-input');
+            if (nameInput) {
+                nameInput.value = '';
+            }
         }
 
-        // 处理保存分数
+        // 简化保存处理函数
         function handleSaveScore(e) {
             e.preventDefault();
             e.stopPropagation();
             
+            // 直接从输入框获取值
             const nameInput = document.getElementById('game-over-name-input');
-            const playerName = nameInput.value.trim();
+            const playerName = nameInput ? nameInput.value.trim() : '';
             
             if (playerName) {
                 saveScore(playerName);
-                document.getElementById('game-over-modal').style.display = 'none';
+                
+                const modal = document.getElementById('game-over-modal');
+                if (modal) {
+                    modal.style.display = 'none';
+                }
                 showLeaderboard();
             } else {
-                // 添加输入提示
-                nameInput.style.borderColor = 'red';
-                setTimeout(() => {
-                    nameInput.style.borderColor = '#4CAF50';
-                }, 1000);
+                alert('请输入名字后再保存');
             }
         }
 
         // 处理重试
         function handleRetry(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            document.getElementById('game-over-modal').style.display = 'none';
-            initGame();
+            console.log('重试按钮被点击');
+            
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            
+            // 隐藏模态框
+            const modal = document.getElementById('game-over-modal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+            
+            // 立即重置游戏状态
+            isGameOver = false;
+            
+            // 使用setTimeout确保UI更新后再初始化游戏
+            setTimeout(function() {
+                initGame();
+            }, 100);
         }
 
         // 保存成绩
@@ -1077,59 +1059,46 @@
 
         // 显示排行榜
         function showLeaderboard() {
-            const modal = document.createElement('div');
-            modal.className = 'modal';
+            const modal = document.getElementById('leaderboard-modal');
             modal.style.display = 'flex';
             
-            let leaderboardHtml = `
-                <div class="modal-content">
-                    <h2>排行榜</h2>
-                    <table style="width: 100%; margin: 10px 0; color: white;">
-                        <tr>
-                            <th>排名</th>
-                            <th>玩家</th>
-                            <th>得分</th>
-                            <th>步数</th>
-                            <th>日期</th>
-                        </tr>
-            `;
+            // 更新排行榜内容
+            const table = modal.querySelector('table');
+            // 清空表格内容（保留表头）
+            while (table.rows.length > 1) {
+                table.deleteRow(1);
+            }
             
+            // 添加排行榜数据
             leaderboard.forEach((entry, index) => {
-                leaderboardHtml += `
-                    <tr>
-                        <td>${index + 1}</td>
-                        <td>${entry.name}</td>
-                        <td>${entry.score}</td>
-                        <td>${entry.steps}</td>
-                        <td>${entry.date}</td>
-                    </tr>
-                `;
+                const row = table.insertRow();
+                row.insertCell(0).textContent = index + 1;
+                row.insertCell(1).textContent = entry.name;
+                row.insertCell(2).textContent = entry.score;
+                row.insertCell(3).textContent = entry.steps;
+                row.insertCell(4).textContent = entry.date;
             });
             
-            leaderboardHtml += `
-                    </table>
-                    <button id="leaderboard-new-game-btn" style="
-                        background-color: #4CAF50;
-                        color: white;
-                        border: none;
-                        padding: 12px 24px;
-                        font-size: 18px;
-                        border-radius: 5px;
-                        cursor: pointer;
-                        margin: 10px;
-                        min-width: 120px;
-                    ">开始新游戏</button>
-                </div>
-            `;
+            // 获取新游戏按钮
+            const newGameBtn = document.getElementById('leaderboard-new-game-btn');
             
-            modal.innerHTML = leaderboardHtml;
-            document.body.appendChild(modal);
+            // 移除旧的事件监听器
+            newGameBtn.onclick = null;
+            newGameBtn.ontouchend = null;
             
-            // 添加触摸事件处理
-            document.getElementById('leaderboard-new-game-btn').addEventListener('touchend', () => {
-                modal.remove();
+            // 添加新的事件监听器
+            newGameBtn.onclick = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                modal.style.display = 'none';
                 initGame();
-            });
+            };
+            newGameBtn.ontouchend = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                modal.style.display = 'none';
+                initGame();
+            };
         }
 
         // 显示成功弹窗
@@ -1138,143 +1107,62 @@
                 cancelAnimationFrame(animationFrameId);
                 animationFrameId = null;
             }
+            
+            // 隐藏控制面板
+            if (typeof controlPanel !== 'undefined' && controlPanel) {
+                controlPanel.style.display = 'none';
+            }
+            
             const modal = document.getElementById('success-modal');
+            if (!modal) return;
+            
             modal.style.display = 'flex';
             
             // 更新模态框内容
-            document.getElementById('success-steps').textContent = steps;
+            const stepsElement = document.getElementById('success-steps');
+            if (stepsElement) stepsElement.textContent = steps;
 
-            // 获取输入框和按钮元素
-            const nameInput = document.getElementById('success-name-input');
+            // 简化按钮的事件处理
             const saveBtn = document.getElementById('success-save-btn');
+            if (saveBtn) {
+                const newSaveBtn = saveBtn.cloneNode(true);
+                saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+                newSaveBtn.addEventListener('click', handleSuccessSave);
+            }
+            
             const restartBtn = document.getElementById('success-restart-btn');
+            if (restartBtn) {
+                const newRestartBtn = restartBtn.cloneNode(true);
+                restartBtn.parentNode.replaceChild(newRestartBtn, restartBtn);
+                newRestartBtn.addEventListener('click', handleSuccessRestart);
+            }
             
-            // 移除旧的事件监听器
-            saveBtn.removeEventListener('click', handleSuccessSave);
-            saveBtn.removeEventListener('touchend', handleSuccessSave);
-            restartBtn.removeEventListener('click', handleSuccessRestart);
-            restartBtn.removeEventListener('touchend', handleSuccessRestart);
-            
-            // 添加新的事件监听器
-            saveBtn.addEventListener('click', handleSuccessSave);
-            saveBtn.addEventListener('touchend', handleSuccessSave);
-            restartBtn.addEventListener('click', handleSuccessRestart);
-            restartBtn.addEventListener('touchend', handleSuccessRestart);
-
-            // 确保输入框可以正常输入
-            nameInput.value = '';
-            nameInput.disabled = false;
-            nameInput.focus();
-
-            // 创建事件隔离层
-            const eventIsolationLayer = document.createElement('div');
-            eventIsolationLayer.style.position = 'fixed';
-            eventIsolationLayer.style.top = '0';
-            eventIsolationLayer.style.left = '0';
-            eventIsolationLayer.style.width = '100%';
-            eventIsolationLayer.style.height = '100%';
-            eventIsolationLayer.style.zIndex = '999';
-            eventIsolationLayer.style.display = 'none';
-            document.body.appendChild(eventIsolationLayer);
-
-            // 优化输入框事件处理
-            const inputEventHandlers = {
-                touchstart: function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    eventIsolationLayer.style.display = 'block';
-                },
-                touchmove: function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                },
-                touchend: function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    eventIsolationLayer.style.display = 'none';
-                },
-                click: function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                },
-                input: function(e) {
-                    e.stopPropagation();
-                },
-                focus: function(e) {
-                    e.stopPropagation();
-                },
-                blur: function(e) {
-                    e.stopPropagation();
-                }
-            };
-
-            // 移除旧的事件监听器
-            Object.keys(inputEventHandlers).forEach(eventType => {
-                nameInput.removeEventListener(eventType, inputEventHandlers[eventType], { capture: true });
-            });
-
-            // 添加新的事件监听器
-            Object.keys(inputEventHandlers).forEach(eventType => {
-                nameInput.addEventListener(eventType, inputEventHandlers[eventType], { capture: true });
-            });
-
-            // 模态框事件处理
-            modal.addEventListener('touchstart', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-            }, { passive: false, capture: true });
-
-            modal.addEventListener('touchmove', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-            }, { passive: false, capture: true });
-
-            modal.addEventListener('touchend', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-            }, { passive: false, capture: true });
-
-            // 清理函数
-            const cleanup = function() {
-                Object.keys(inputEventHandlers).forEach(eventType => {
-                    nameInput.removeEventListener(eventType, inputEventHandlers[eventType], { capture: true });
-                });
-                eventIsolationLayer.remove();
-            };
-
-            // 在模态框关闭时清理事件监听器
-            const originalDisplay = modal.style.display;
-            Object.defineProperty(modal, 'style', {
-                get: function() {
-                    return originalDisplay;
-                },
-                set: function(value) {
-                    if (value === 'none') {
-                        cleanup();
-                    }
-                    originalDisplay = value;
-                }
-            });
+            // 清空输入框
+            const nameInput = document.getElementById('success-name-input');
+            if (nameInput) {
+                nameInput.value = '';
+            }
         }
 
-        // 处理成功保存
+        // 简化成功保存处理函数
         function handleSuccessSave(e) {
             e.preventDefault();
             e.stopPropagation();
             
+            // 直接从输入框获取值
             const nameInput = document.getElementById('success-name-input');
-            const playerName = nameInput.value.trim();
+            const playerName = nameInput ? nameInput.value.trim() : '';
             
             if (playerName) {
                 saveScore(playerName);
-                document.getElementById('success-modal').style.display = 'none';
+                
+                const modal = document.getElementById('success-modal');
+                if (modal) {
+                    modal.style.display = 'none';
+                }
                 showLeaderboard();
             } else {
-                // 添加输入提示
-                nameInput.style.borderColor = 'red';
-                setTimeout(() => {
-                    nameInput.style.borderColor = '#4CAF50';
-                }, 1000);
+                alert('请输入名字后再保存');
             }
         }
 
@@ -1288,102 +1176,111 @@
 
         // 绘制开始按钮
         function drawStartButton() {
-            if (!isGameStarted) {
-                // 绘制半透明背景
-                offscreenCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                offscreenCtx.fillRect(0, 0, canvas.width, canvas.height);
-                
-                // 绘制按钮背景
-                const buttonWidth = 200;
-                const buttonHeight = 60;
-                const buttonX = canvas.width/2 - buttonWidth/2;
-                const buttonY = canvas.height/2 - buttonHeight/2;
-                
-                // 绘制按钮阴影
-                offscreenCtx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-                offscreenCtx.fillRect(buttonX + 5, buttonY + 5, buttonWidth, buttonHeight);
-                
-                // 绘制按钮主体
-                offscreenCtx.fillStyle = '#4CAF50';
-                offscreenCtx.fillRect(buttonX, buttonY, buttonWidth, buttonHeight);
-                
-                // 绘制按钮边框
-                offscreenCtx.strokeStyle = '#8BC34A';
-                offscreenCtx.lineWidth = 3;
-                offscreenCtx.strokeRect(buttonX, buttonY, buttonWidth, buttonHeight);
-                
-                // 绘制按钮文字
-                offscreenCtx.fillStyle = 'white';
-                offscreenCtx.font = 'bold 28px Arial';
-                offscreenCtx.textAlign = 'center';
-                offscreenCtx.textBaseline = 'middle';
-                offscreenCtx.fillText('点击开始游戏', canvas.width/2, canvas.height/2);
-                
-                // 添加提示文字
-                offscreenCtx.font = '20px Arial';
-                offscreenCtx.fillStyle = '#8BC34A';
-                offscreenCtx.fillText('使用方向键或滑动控制蛇的移动', canvas.width/2, canvas.height/2 + 50);
-                
-                // 添加闪烁效果
-                const time = Date.now() / 500;
-                const alpha = 0.5 + Math.sin(time) * 0.3;
-                offscreenCtx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-                offscreenCtx.fillText('点击任意位置开始', canvas.width/2, canvas.height/2 + 90);
+            // 确保离屏canvas尺寸与主canvas一致
+            offscreenCanvas.width = canvas.width;
+            offscreenCanvas.height = canvas.height;
+            
+            // 绘制半透明背景
+            offscreenCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            offscreenCtx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制按钮背景
+            const buttonWidth = 200;
+            const buttonHeight = 60;
+            const buttonX = canvas.width/2 - buttonWidth/2;
+            const buttonY = canvas.height/2 - buttonHeight/2;
+            
+            // 绘制按钮阴影
+            offscreenCtx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            offscreenCtx.fillRect(buttonX + 5, buttonY + 5, buttonWidth, buttonHeight);
+            
+            // 绘制按钮主体
+            offscreenCtx.fillStyle = '#4CAF50';
+            offscreenCtx.fillRect(buttonX, buttonY, buttonWidth, buttonHeight);
+            
+            // 绘制按钮边框
+            offscreenCtx.strokeStyle = '#8BC34A';
+            offscreenCtx.lineWidth = 3;
+            offscreenCtx.strokeRect(buttonX, buttonY, buttonWidth, buttonHeight);
+            
+            // 绘制按钮文字
+            offscreenCtx.fillStyle = 'white';
+            offscreenCtx.font = 'bold 28px Arial';
+            offscreenCtx.textAlign = 'center';
+            offscreenCtx.textBaseline = 'middle';
+            offscreenCtx.fillText('点击开始游戏', canvas.width/2, canvas.height/2);
+            
+            // 添加提示文字
+            offscreenCtx.font = '20px Arial';
+            offscreenCtx.fillStyle = '#8BC34A';
+            offscreenCtx.fillText('使用方向键或滑动控制蛇的移动', canvas.width/2, canvas.height/2 + 50);
+            
+            // 添加闪烁效果
+            const time = Date.now() / 500;
+            const alpha = 0.5 + Math.sin(time) * 0.3;
+            offscreenCtx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+            offscreenCtx.fillText('点击任意位置开始', canvas.width/2, canvas.height/2 + 90);
 
-                // 将离屏canvas的内容复制到主canvas
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(offscreenCanvas, 0, 0);
+            // 将离屏canvas的内容复制到主canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(offscreenCanvas, 0, 0);
+            
+            // 为了让动画持续，我们需要不断重绘开始按钮
+            if (!isGameStarted) {
+                requestAnimationFrame(drawStartButton);
             }
         }
 
         // 处理开始游戏点击
         function handleStartGame(e) {
+            // 阻止默认行为和事件冒泡
             e.preventDefault();
             e.stopPropagation();
             
-            // 获取点击位置
-            let x, y;
-            if (e.type === 'click') {
-                const rect = canvas.getBoundingClientRect();
-                x = e.clientX - rect.left;
-                y = e.clientY - rect.top;
-            } else {
-                const touch = e.touches[0];
-                const rect = canvas.getBoundingClientRect();
-                x = touch.clientX - rect.left;
-                y = touch.clientY - rect.top;
-            }
-
-            // 检查是否点击了开始按钮区域
-            const buttonWidth = 200;
-            const buttonHeight = 60;
-            const buttonX = canvas.width/2 - buttonWidth/2;
-            const buttonY = canvas.height/2 - buttonHeight/2;
-
-            if (x >= buttonX && x <= buttonX + buttonWidth &&
-                y >= buttonY && y <= buttonY + buttonHeight) {
-                startGame();
-            }
+            // 如果游戏已经开始，则不处理
+            if (isGameStarted) return;
+            
+            // 开始游戏
+            startGame();
         }
 
         // 触摸事件处理
         function handleTouchStart(e) {
+            // 检查任何可见的模态框
+            const successModal = document.getElementById('success-modal');
+            const gameOverModal = document.getElementById('game-over-modal');
+            const leaderboardModal = document.getElementById('leaderboard-modal');
+            
+            if ((successModal && successModal.style.display === 'flex') || 
+                (gameOverModal && gameOverModal.style.display === 'flex') || 
+                (leaderboardModal && leaderboardModal.style.display === 'flex')) {
+                
+                // 如果点击的是输入框或按钮，不干扰它们的正常操作
+                if (e.target.tagName === 'INPUT' || 
+                    e.target.tagName === 'BUTTON' || 
+                    e.target.closest('.modal-content')) {
+                    return;
+                }
+            }
+            
+            // 阻止默认行为，避免页面滚动
             e.preventDefault();
-            const touch = e.touches[0];
-            const rect = canvas.getBoundingClientRect();
-            const x = touch.clientX - rect.left;
-            const y = touch.clientY - rect.top;
-
+            
             // 如果游戏未开始，则开始游戏
             if (!isGameStarted) {
                 startGame();
                 return;
             }
+            
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
 
             // 记录触摸起始位置
             touchStartX = x;
             touchStartY = y;
-            isSwiping = false;
+            isSwiping = true;
 
             // 检查是否在游戏区域内
             if (x >= 0 && x <= canvas.width && y >= 0 && y <= canvas.height) {
@@ -1400,6 +1297,23 @@
         }
 
         function handleTouchMove(e) {
+            // 检查任何可见的模态框
+            const successModal = document.getElementById('success-modal');
+            const gameOverModal = document.getElementById('game-over-modal');
+            const leaderboardModal = document.getElementById('leaderboard-modal');
+            
+            if ((successModal && successModal.style.display === 'flex') || 
+                (gameOverModal && gameOverModal.style.display === 'flex') || 
+                (leaderboardModal && leaderboardModal.style.display === 'flex')) {
+                
+                // 如果在模态框内移动，不干扰
+                if (e.target.tagName === 'INPUT' || 
+                    e.target.tagName === 'BUTTON' || 
+                    e.target.closest('.modal-content')) {
+                    return;
+                }
+            }
+            
             e.preventDefault();
             
             if (isSwiping) {
@@ -1436,6 +1350,23 @@
 
         // 添加缺失的handleTouchEnd函数
         function handleTouchEnd(e) {
+            // 检查任何可见的模态框
+            const successModal = document.getElementById('success-modal');
+            const gameOverModal = document.getElementById('game-over-modal');
+            const leaderboardModal = document.getElementById('leaderboard-modal');
+            
+            if ((successModal && successModal.style.display === 'flex') || 
+                (gameOverModal && gameOverModal.style.display === 'flex') || 
+                (leaderboardModal && leaderboardModal.style.display === 'flex')) {
+                
+                // 如果在模态框内结束触摸，不干扰
+                if (e.target.tagName === 'INPUT' || 
+                    e.target.tagName === 'BUTTON' || 
+                    e.target.closest('.modal-content')) {
+                    return;
+                }
+            }
+            
             e.preventDefault();
             isSwiping = false;
             joystick.isActive = false;
@@ -1584,6 +1515,7 @@
         document.addEventListener('touchend', handleTouchEnd, {passive: false});
         
         // 添加开始游戏事件监听
+        canvas.addEventListener('mousedown', handleStartGame);
         canvas.addEventListener('click', handleStartGame);
         canvas.addEventListener('touchstart', handleStartGame, {passive: false});
         
@@ -1610,6 +1542,7 @@
         controlPanel.style.zIndex = '100';
         controlPanel.style.color = 'yellow';
         controlPanel.style.fontSize = '20px';
+        controlPanel.style.display = 'none'; // 初始时隐藏
         controlPanel.innerHTML = `
             <button id="pause-button" style="
                 background: rgba(0, 0, 0, 0.5);
@@ -1746,8 +1679,14 @@
         }
         
         // 初始化游戏
+        // 修改 initGame 函数
         function initGame() {
+            // 调整画布大小
             resizeCanvas();
+            
+            // 初始化离屏Canvas
+            offscreenCanvas.width = canvas.width;
+            offscreenCanvas.height = canvas.height;
             
             // 初始化蛇
             const gridWidth = Math.floor(canvas.width / GRID_SIZE);
@@ -1760,19 +1699,34 @@
                 {x: startX - 2, y: startY}
             ];
             
-            // 初始化多个食物
-            food = [];
-            for (let i = 0; i < MIN_FOOD_COUNT; i++) {
-                generateFood();
-            }
-            
-            // 重置分数和方向
+            // 重置游戏状态
             score = 0;
             steps = 0;
             gameSpeed = INITIAL_GAME_SPEED;
             scoreElement.textContent = `得分: ${score}/${TARGET_SCORE} | 步数: ${steps} | 速度: ${Math.round(1000/gameSpeed)}`;
             direction = 'right';
             nextDirection = 'right';
+            isGameStarted = false;
+            isPaused = false;
+            isGameOver = false;
+            
+            // 重置特效相关变量
+            comboCount = 0;
+            currentComboMultiplier = 1;
+            lastFoodTime = 0;
+            if (comboTimeout) {
+                clearTimeout(comboTimeout);
+                comboTimeout = null;
+            }
+            snakeHeadEffects = [];
+            comboTexts = [];
+            badFoodEffects = [];
+            
+            // 清空食物数组并生成新食物
+            food = [];
+            for (let i = 0; i < MIN_FOOD_COUNT; i++) {
+                generateFood();
+            }
             
             // 清除动画帧
             if (animationFrameId) {
@@ -1780,20 +1734,59 @@
                 animationFrameId = null;
             }
             
-            // 重置游戏状态
-            isGameStarted = false;
-            isPaused = false;
-            isGameOver = false;
+            // 隐藏控制面板
+            controlPanel.style.display = 'none';
             
-            // 绘制初始状态
-            drawGame();
-            drawStartButton();
+            // 绘制开始按钮（现在使用requestAnimationFrame持续绘制）
+            requestAnimationFrame(drawStartButton);
             
             // 检查是否在微信中打开
             if (checkWeChatBrowser()) {
                 return;
             }
+            
+            // 确保所有模态框被隐藏
+            const modals = document.querySelectorAll('.modal');
+            modals.forEach(modal => {
+                modal.style.display = 'none';
+            });
+            
+            // 重置游戏状态
+            isGameOver = false;
         }
+
+        // 在脚本最后添加
+        window.onload = function() {
+            // 确保canvas存在
+            if (!canvas) {
+                canvas = document.getElementById('game-canvas');
+                ctx = canvas.getContext('2d', { alpha: false });
+            }
+            
+            // 确保离屏canvas正确设置
+            offscreenCanvas = document.createElement('canvas');
+            offscreenCtx = offscreenCanvas.getContext('2d', { alpha: false });
+            
+            // 初始化游戏
+            initGame();
+        };
+
+        // 替换整个DOMContentLoaded处理函数，大幅简化
+        window.addEventListener('DOMContentLoaded', function() {
+            // 获取所有模态框
+            const modals = document.querySelectorAll('.modal');
+            
+            modals.forEach(function(modal) {
+                // 对每个模态框的内容区域添加事件处理
+                const modalContent = modal.querySelector('.modal-content');
+                if (modalContent) {
+                    // 阻止模态框内的点击事件传播到document
+                    modalContent.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                    });
+                }
+            });
+        });
     </script>
 </body>
 </html>
